@@ -1,0 +1,12 @@
+{
+  "name": "pz-control",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Project Zomboid unified RCON control + admin panel",
+  "scripts": {
+    "test": "npm --prefix server test && npm --prefix client test",
+    "build:server": "node tools/build-server-installer.js",
+    "build:client": "npm --prefix client run dist",
+    "build": "npm run build:server && npm run build:client"
+  }
+}

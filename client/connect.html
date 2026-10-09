@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
+  <title>Project Zomboid Control</title>
+  <link rel="stylesheet" href="connect.css">
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><span class="brand-mark">Z</span><div><span class="eyebrow">PROJECT ZOMBOID</span><h1>Server Control</h1></div></div>
+    <p class="hint">Enter the address of your Project Zomboid Control server (the VPN/LAN address shown by the server installer).</p>
+    <form id="form">
+      <label>Server address<input id="address" placeholder="192.168.1.50 or https://panel.example.com" autofocus required></label>
+      <button class="primary" id="connect">Connect</button>
+      <output id="error"></output>
+    </form>
+    <section id="recent-box" hidden>
+      <h2>Recent servers</h2>
+      <ul id="recent"></ul>
+    </section>
+  </main>
+  <script src="connect.js"></script>
+</body>
+</html>

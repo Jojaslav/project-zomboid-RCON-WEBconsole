@@ -1,0 +1,32 @@
+{
+  "name": "pz-control-client",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Project Zomboid Control desktop client",
+  "author": "Project Zomboid Control",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.js\"",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.zomboid.control.client",
+    "productName": "Project Zomboid Control",
+    "directories": { "output": "../dist/client" },
+    "files": ["main.js", "preload.js", "servers.js", "connect.*"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Project Zomboid Control",
+      "artifactName": "pz-control-client-setup-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  }
+}

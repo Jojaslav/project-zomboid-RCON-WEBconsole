@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Project Zomboid Control</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <section id="login" class="login-panel">
+    <div class="brand"><span class="brand-mark">Z</span><div><span class="eyebrow">PROJECT ZOMBOID</span><h1>Server Control</h1></div></div>
+    <form id="login-form">
+      <label>Password<input id="password" type="password" autocomplete="current-password" required autofocus></label>
+      <button class="primary" type="submit">Sign in</button>
+    </form>
+    <form id="code-form" hidden>
+      <p class="hint">Enter the 6-digit code from your authenticator app, or a backup code.</p>
+      <label>Authentication code<input id="login-code" inputmode="text" autocomplete="one-time-code" maxlength="20" required></label>
+      <button class="primary" type="submit">Verify</button>
+      <button id="code-cancel" class="text" type="button">Back</button>
+    </form>
+    <output id="login-error"></output>
+    <button id="switch-server-login" class="text client-only" hidden>Change server</button>
+  </section>
+
+  <div id="panel" hidden>
+    <header>
+      <div class="brand"><span class="brand-mark">Z</span><div><span class="eyebrow">PROJECT ZOMBOID</span><h1>Server Control</h1></div></div>
+      <div class="server-health">
+        <div class="status-lights">
+          <div id="status" class="status offline"><i></i><span>Checking service…</span></div>
+          <div id="ready" class="status offline"><i></i><span>Game not started</span></div>
+        </div>
+        <div class="stat"><b id="player-count">—</b><span>PLAYERS</span></div>
+        <div class="stat"><b id="uptime">—</b><span>UPTIME</span></div>
+        <button id="refresh-status" class="text" title="Refresh">↻</button>
+        <button id="switch-server" class="text client-only" hidden>Change server</button>
+        <button id="logout" class="text">Sign out</button>
+      </div>
+    </header>
+
+    <nav role="tablist">
+      <button role="tab" data-tab="dashboard" class="active">Dashboard</button>
+      <button role="tab" data-tab="console">Console</button>
+      <button role="tab" data-tab="settings">Settings</button>
+      <button role="tab" data-tab="ini">Server config</button>
+      <button role="tab" data-tab="sandbox">Sandbox config</button>
+      <button role="tab" data-tab="spawnregions">Spawn regions</button>
+      <button role="tab" data-tab="spawnpoints">Spawn points</button>
+      <button role="tab" data-tab="mods">Mods</button>
+      <button role="tab" data-tab="logs">Server log</button>
+      <button role="tab" data-tab="security">Security</button>
+    </nav>
+
+    <main>
+      <section id="dashboard" class="tab active">
+        <div class="panel metrics-panel">
+          <div class="panel-top"><div><h2>Server metrics</h2><p id="metrics-state">Loading…</p></div></div>
+          <div class="metric-cards">
+            <div><span>SERVER UPTIME</span><b id="metric-uptime">—</b></div>
+            <div><span>JAVA CPU</span><b id="metric-java-cpu">—</b></div>
+            <div><span>JAVA RSS</span><b id="metric-rss">—</b></div>
+            <div><span>HOST CPU</span><b id="metric-cpu">—</b></div>
+            <div><span>HOST RAM</span><b id="metric-ram">—</b></div>
+            <div><span>HOST UPTIME</span><b id="metric-host-uptime">—</b></div>
+          </div>
+        </div>
+        <div class="dash-grid">
+          <div class="panel">
+            <div class="panel-top"><h2>Players</h2><button id="refresh-players" class="text" title="Refresh players">↻</button></div>
+            <div id="players" class="player-list"><div class="empty">Loading…</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-top"><div><h2>Server chat</h2><p>Broadcast a message to everyone online.</p></div></div>
+            <form id="chat-form" class="inline-form"><input id="chat-message" maxlength="250" placeholder="Type a server-wide message…" required><button class="primary">Send</button></form>
+            <div class="panel-top"><div><h2>Server actions</h2><p>Administrative actions through RCON.</p></div></div>
+            <div class="actions">
+              <button data-command="save">Save world</button>
+              <button id="announce">Announce restart</button>
+              <button id="restart" class="warning">Shutdown (RCON quit)</button>
+            </div>
+            <div class="panel-top"><div><h2>Custom actions</h2><p>One-click commands.</p></div><button id="add-custom" class="text">+ Add</button></div>
+            <div id="custom-actions" class="actions"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="console" class="tab">
+        <div class="panel console">
+          <div class="panel-top"><div><h2>RCON console</h2><p id="console-state">Commands run through the server's local RCON.</p></div><button id="clear" class="text">Clear</button></div>
+          <div class="command-library"><label for="command-picker">Command library</label><select id="command-picker"></select></div>
+          <div id="output" aria-live="polite"><div class="entry system">Ready.</div></div>
+          <form id="command-form"><span class="prompt">RCON ›</span><input id="command" autocomplete="off" placeholder="Enter an RCON command…"><button class="primary">Execute</button></form>
+        </div>
+      </section>
+
+      <section id="settings" class="tab"><div class="section-title"><h2>Common sandbox settings</h2><button id="settings-save" class="primary">Save settings</button></div><form id="settings-form" class="settings-grid"></form></section>
+      <section id="ini" class="tab editor-tab" data-editor><div class="section-title"><h2>Server configuration</h2><div><button data-reload="ini">Reload</button> <button data-backup="ini">Backup</button> <button data-save="ini" class="primary">Save</button></div></div><textarea id="ini-content" spellcheck="false"></textarea></section>
+      <section id="sandbox" class="tab editor-tab" data-editor><div class="section-title"><h2>Sandbox configuration</h2><div><button data-reload="sandbox">Reload</button> <button data-backup="sandbox">Backup</button> <button data-save="sandbox" class="primary">Save</button></div></div><textarea id="sandbox-content" spellcheck="false"></textarea></section>
+      <section id="spawnregions" class="tab editor-tab" data-editor><div class="section-title"><h2>Spawn regions</h2><div><button data-reload="spawnregions">Reload</button> <button data-backup="spawnregions">Backup</button> <button data-save="spawnregions" class="primary">Save</button></div></div><textarea id="spawnregions-content" spellcheck="false"></textarea></section>
+      <section id="spawnpoints" class="tab editor-tab" data-editor><div class="section-title"><h2>Spawn points</h2><div><button data-reload="spawnpoints">Reload</button> <button data-backup="spawnpoints">Backup</button> <button data-save="spawnpoints" class="primary">Save</button></div></div><textarea id="spawnpoints-content" spellcheck="false"></textarea></section>
+      <section id="mods" class="tab editor-tab"><div class="section-title"><h2>Configured mods</h2><button data-reload="ini">Reload from server config</button></div><pre id="mods-content"></pre></section>
+      <section id="logs" class="tab editor-tab"><div class="section-title"><h2>Live service journal</h2><div class="log-tools"><span id="logs-state" class="hint"></span><label class="check"><input type="checkbox" id="logs-follow" checked> Follow</label><button id="logs-reload">Refresh log</button></div></div><pre id="logs-content">Loading…</pre></section>
+
+      <section id="security" class="tab">
+        <div class="panel">
+          <div class="panel-top"><div><h2>Two-factor authentication</h2><p id="tfa-status">Loading…</p></div></div>
+          <div id="tfa-off" hidden>
+            <p class="hint">Protect sign-in with a time-based code from any authenticator app (Google Authenticator, Microsoft Authenticator, Authy, 1Password, Aegis, …).</p>
+            <button id="tfa-start" class="primary">Set up two-factor authentication</button>
+          </div>
+          <div id="tfa-setup" hidden>
+            <p class="hint">1. Scan this QR code with your authenticator app, or enter the key manually.</p>
+            <img id="tfa-qr" class="qr" alt="Authenticator QR code" width="200" height="200">
+            <p>Manual key: <code id="tfa-secret"></code></p>
+            <form id="tfa-enable-form" class="inline-form">
+              <input id="tfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code from the app" required>
+              <button class="primary">Verify and enable</button>
+            </form>
+          </div>
+          <div id="tfa-codes" hidden>
+            <p class="hint"><b>Save these backup codes now.</b> Each works once if you lose your device. They will not be shown again.</p>
+            <pre id="tfa-codes-list"></pre>
+            <button id="tfa-copy">Copy codes</button> <button id="tfa-codes-done" class="primary">I saved them</button>
+          </div>
+          <form id="tfa-manage" hidden>
+            <p class="hint">Changing these settings needs your password and a current code (or a backup code).</p>
+            <div class="settings-grid">
+              <label>Password<input id="tfa-manage-password" type="password" autocomplete="current-password"></label>
+              <label>Code<input id="tfa-manage-code" autocomplete="one-time-code" maxlength="20"></label>
+            </div>
+            <div class="actions">
+              <button type="button" id="tfa-regen">Generate new backup codes</button>
+              <button type="button" id="tfa-disable" class="warning">Disable two-factor</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span id="notice" role="status"></span>
+      <div class="service-controls"><span>Service</span><button data-service="start">Start</button><button data-service="stop">Stop</button><button data-service="restart">Restart</button></div>
+    </footer>
+  </div>
+
+  <dialog id="player-dialog">
+    <form method="dialog" class="dialog-body">
+      <h2 id="dialog-title">Player action</h2>
+      <p id="dialog-copy"></p>
+      <label>Reason (optional)<input id="dialog-value" placeholder="Optional reason"></label>
+      <div class="dialog-actions"><button value="cancel">Cancel</button><button id="dialog-confirm" value="default" class="primary">Confirm</button></div>
+    </form>
+  </dialog>
+  <script src="/app.js"></script>
+</body>
+</html>
