@@ -14,7 +14,6 @@ jobs:
         with:
           node-version: 20
       - run: npm --prefix server ci
-      - run: npm --prefix client ci
       - run: npm test
       - run: bash -n server/installer/setup.sh
       - run: node tools/build-server-installer.js
