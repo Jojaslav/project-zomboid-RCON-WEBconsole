@@ -155,3 +155,17 @@ test('users survive a restart', async () => {
     } finally { await again.close(); }
   } finally { await t.close(); }
 });
+
+test('certificate download needs a session and works only when a certificate exists', async () => {
+  const t = await start();
+  try {
+    assert.equal((await t.get('/api/certificate')).status, 401);
+    const admin = await adminCookie(t);
+    assert.equal((await t.get('/api/certificate', undefined, admin)).status, 404);
+    await fs.writeFile(path.join(t.dir, 'root.crt'), '-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----\n');
+    const res = await t.get('/api/certificate', undefined, admin);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-disposition'), /pz-control-root\.crt/);
+    assert.match(await res.text(), /BEGIN CERTIFICATE/);
+  } finally { await t.close(); }
+});

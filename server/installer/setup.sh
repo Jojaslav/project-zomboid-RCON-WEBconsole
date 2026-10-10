@@ -261,6 +261,11 @@ EOF
   systemctl enable caddy >/dev/null 2>&1 || true
   systemctl restart caddy
   sleep 2
+  # Public root certificate, copied so the panel can offer it for download to new clients.
+  if [ -n "$CADDY_ROOT" ]; then
+    for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$CADDY_ROOT" ] || { curl -sk -o /dev/null "https://$HTTPS_ADDR/" || true; sleep 1; }; done
+    if [ -f "$CADDY_ROOT" ]; then install -o "$PZ_USER" -m 644 "$CADDY_ROOT" "$DATA_DIR/root.crt"; fi
+  fi
   [ -z "$CADDY_ROOT" ] || [ -f "$CADDY_ROOT" ] || CADDY_ROOT="(created on first connection) $CADDY_ROOT"
 fi
 

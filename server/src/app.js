@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const QRCode = require('qrcode');
@@ -193,6 +194,13 @@ function createApp(config, overrides = {}) {
     auth.destroyOthers(getCookie(req, COOKIE), req.user);
     res.json({ ok: true });
   }));
+  // Public root certificate of the built-in HTTPS proxy, for trusting the panel on a new computer.
+  app.get('/api/certificate', requireAuth, (_req, res) => {
+    const file = path.join(config.dataDir, 'root.crt');
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'No private certificate is available. It exists only when the server was installed with --https on a private address.' });
+    res.set({ 'Content-Type': 'application/x-x509-ca-cert', 'Content-Disposition': 'attachment; filename="pz-control-root.crt"' });
+    res.send(fs.readFileSync(file));
+  });
   app.get('/api/info', requireAuth, (_req, res) => res.json({
     version,
     rconConfigured: rcon.configured,

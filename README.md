@@ -176,6 +176,10 @@ Rules:
 - Users change their own password under **Security → Change my password**. The built-in `admin` password is changed in `/etc/pz-control/pz-control.env`.
 - Adding, resetting and deleting users, and changing a password, require the acting user's password and a current code.
 - If every user is locked out, use the admin account (its password is in the env file) and reset them, or delete `/var/lib/pz-control/users.json` to remove all added users.
+### Trusting the certificate on a new computer
+
+With `--https` on a private address, each new computer must trust the server's root certificate once. Sign in (accept the browser warning for this first visit), open **Security → Certificate for new computers**, and download it. The installer places a copy in `/var/lib/pz-control/root.crt`; on servers installed before this feature, re-run the installer to create it.
+
 ## Installer options
 
 ```text

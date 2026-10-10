@@ -442,6 +442,18 @@ $('#users-form').addEventListener('submit', async (event) => {
     await loadUsers();
   } catch (error) { showError(error); }
 });
+$('#cert-download').addEventListener('click', async () => {
+  try {
+    const response = await fetch('/api/certificate');
+    if (response.status === 401) { showLogin(); return; }
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Certificate not available.');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(await response.blob());
+    link.download = 'pz-control-root.crt';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch (error) { showError(error); }
+});
 $('#password-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
