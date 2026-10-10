@@ -73,9 +73,11 @@ function createApp(config, overrides = {}) {
   });
 
   app.post('/api/login', (req, res) => {
-    const username = users.normalize(req.body?.username || 'admin');
+    const { username: rawName = 'admin', password: rawPassword = '' } = req.body || {};
+    if (typeof rawName !== 'string' || typeof rawPassword !== 'string') return res.status(400).json({ error: 'Invalid request.' });
+    const username = users.normalize(rawName || 'admin');
     const known = users.has(username);
-    const result = auth.login(String(req.body?.password || ''), req.ip, {
+    const result = auth.login(rawPassword, req.ip, {
       username,
       challenge: known ? (users.needsEnrollment(username) ? 'enroll' : users.twoFactor(username).enabled ? 'code' : null) : null,
     });
@@ -260,6 +262,11 @@ function createApp(config, overrides = {}) {
   app.use(express.static(path.join(__dirname, '..', 'public'), { index: 'index.html' }));
   app.use((_req, res) => res.status(404).json({ error: 'Not found.' }));
 
+  // Body-parser failures (bad JSON, too large) and anything else uncaught: JSON only, never a stack trace.
+  app.use((error, _req, res, _next) => {
+    const status = error.status && error.status >= 400 && error.status < 500 ? error.status : 500;
+    res.status(status).json({ error: status === 413 ? 'Request too large.' : status === 500 ? 'Internal error.' : 'Bad request.' });
+  });
   app.locals.services = { auth, rcon, service, files, metrics };
   return app;
 }

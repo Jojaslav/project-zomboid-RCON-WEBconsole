@@ -169,3 +169,15 @@ test('certificate download needs a session and works only when a certificate exi
     assert.match(await res.text(), /BEGIN CERTIFICATE/);
   } finally { await t.close(); }
 });
+test('bad input gets JSON errors without stack traces, and login only takes strings', async () => {
+  const t = await start();
+  try {
+    const bad = await fetch(t.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
+    assert.equal(bad.status, 400);
+    assert.deepEqual(await bad.json(), { error: 'Bad request.' });
+    const big = await fetch(t.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'x'.repeat(3 * 1024 * 1024) }) });
+    assert.equal(big.status, 413);
+    assert.equal((await t.post('/api/login', { username: ['admin'], password: [PASSWORD] })).status, 400);
+    assert.equal((await t.post('/api/login', { username: 'admin', password: { $ne: 1 } })).status, 400);
+  } finally { await t.close(); }
+});
