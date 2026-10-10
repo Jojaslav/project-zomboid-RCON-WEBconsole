@@ -1,5 +1,4 @@
 version=1
-id=0
 title=PZ Control - RCON + Web Admin Panel
 description=[h1]Project Zomboid Control - RCON + Web Admin Panel[/h1]
 description=
