@@ -1,0 +1,35 @@
+[h1]Project Zomboid Control - RCON + Web Admin Panel[/h1]
+
+A self-hosted admin panel and RCON controller for [b]Project Zomboid dedicated servers on Linux[/b]. This is an external tool, not an in-game mod. Nothing needs to be installed in your game or on your players' computers.
+
+[h2]Features[/h2]
+[list]
+[*] Live player list, kick/ban and any RCON command
+[*] Host and Java metrics (CPU, memory, uptime)
+[*] Edit server .ini, SandboxVars and spawn files, with automatic backups
+[*] Start / stop / restart the game service, with a "SERVER STARTED" indicator
+[*] Live rolling server log
+[*] Multiple users, each with their own password
+[*] Two-factor authentication (TOTP) with any authenticator app (Google Authenticator, Authy, Microsoft Authenticator, 1Password...)
+[*] HTTPS via Caddy, and a certificate download for new computers
+[*] Optional Windows desktop client that remembers your servers
+[/list]
+
+[h2]Install[/h2]
+[olist]
+[*] Enable RCON in your server's .ini (RCONPort and RCONPassword).
+[*] Download the [b]server installer[/b] from the releases page and run it on your Linux server.
+[*] Open the panel address in a browser, or install the [b]Windows client[/b].
+[*] Turn on two-factor authentication in the Security tab.
+[/olist]
+
+[b]Downloads, full instructions and source code:[/b]
+[url=https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/releases]https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/releases[/url]
+
+[h2]Security[/h2]
+Your RCON password stays on the server. The panel is protected by login, optional 2FA, rate limiting and HTTPS. If you expose it to the internet, use a real domain name and keep 2FA enabled for every account.
+
+[h2]Support[/h2]
+Report issues on GitHub: [url=https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/issues]https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/issues[/url]
+
+Licensed under MIT.
