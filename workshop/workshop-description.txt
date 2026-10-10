@@ -24,12 +24,12 @@ A self-hosted admin panel and RCON controller for [b]Project Zomboid dedicated s
 [/olist]
 
 [b]Downloads, full instructions and source code:[/b]
-[url=https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/releases]https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/releases[/url]
+[url=https://github.com/Jojaslav/project-zomboid-servercontrol/releases]https://github.com/Jojaslav/project-zomboid-servercontrol/releases[/url]
 
 [h2]Security[/h2]
 Your RCON password stays on the server. The panel is protected by login, optional 2FA, rate limiting and HTTPS. If you expose it to the internet, use a real domain name and keep 2FA enabled for every account.
 
 [h2]Support[/h2]
-Report issues on GitHub: [url=https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/issues]https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/issues[/url]
+Report issues on GitHub: [url=https://github.com/Jojaslav/project-zomboid-servercontrol/issues]https://github.com/Jojaslav/project-zomboid-servercontrol/issues[/url]
 
 Licensed under MIT.

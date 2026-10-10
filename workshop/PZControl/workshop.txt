@@ -27,13 +27,13 @@ description=[*] Turn on two-factor authentication in the Security tab.
 description=[/olist]
 description=
 description=[b]Downloads, full instructions and source code:[/b]
-description=[url=https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/releases]https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/releases[/url]
+description=[url=https://github.com/Jojaslav/project-zomboid-servercontrol/releases]https://github.com/Jojaslav/project-zomboid-servercontrol/releases[/url]
 description=
 description=[h2]Security[/h2]
 description=Your RCON password stays on the server. The panel is protected by login, optional 2FA, rate limiting and HTTPS. If you expose it to the internet, use a real domain name and keep 2FA enabled for every account.
 description=
 description=[h2]Support[/h2]
-description=Report issues on GitHub: [url=https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/issues]https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/issues[/url]
+description=Report issues on GitHub: [url=https://github.com/Jojaslav/project-zomboid-servercontrol/issues]https://github.com/Jojaslav/project-zomboid-servercontrol/issues[/url]
 description=
 description=Licensed under MIT.
 tags=Misc;Server

@@ -1,6 +1,6 @@
 # Project Zomboid Control
 
-[![CI](https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/actions/workflows/ci.yml/badge.svg)](https://github.com/Jojaslav/project-zomboid-RCON-WEBconsole/actions/workflows/ci.yml)
+[![CI](https://github.com/Jojaslav/project-zomboid-servercontrol/actions/workflows/ci.yml/badge.svg)](https://github.com/Jojaslav/project-zomboid-servercontrol/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A self-hosted admin panel and RCON controller for a **Project Zomboid dedicated server on Linux**, with a Windows desktop client and optional **two-factor authentication** (any TOTP authenticator app).
