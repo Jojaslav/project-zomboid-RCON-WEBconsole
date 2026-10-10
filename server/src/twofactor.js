@@ -67,26 +67,34 @@ function generateBackupCodes(count = 10) {
   });
 }
 
+function fileStore(file) {
+  return {
+    read() {
+      try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+      catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    },
+    write(state) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      const temp = `${file}.tmp`;
+      fs.writeFileSync(temp, JSON.stringify(state), { mode: 0o600 });
+      fs.renameSync(temp, file);
+    },
+    clear() { fs.rmSync(file, { force: true }); },
+  };
+}
+
+// `target` is a data directory (state lives in 2fa.json) or a store with read/write/clear.
 class TwoFactor {
-  constructor(dir, now = Date.now) {
-    this.file = path.join(dir, '2fa.json');
+  constructor(target, now = Date.now, account = 'admin') {
+    this.store = typeof target === 'string' ? fileStore(path.join(target, '2fa.json')) : target;
     this.now = now;
+    this.account = account;
     this.pending = null;
-    this.state = this.read();
+    // A corrupt file throws on purpose: failing closed beats silently disabling 2FA.
+    this.state = this.store.read();
   }
 
-  // A corrupt file throws on purpose: failing closed beats silently disabling 2FA.
-  read() {
-    try { return JSON.parse(fs.readFileSync(this.file, 'utf8')); }
-    catch (error) { if (error.code === 'ENOENT') return null; throw error; }
-  }
-
-  write() {
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const temp = `${this.file}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(this.state), { mode: 0o600 });
-    fs.renameSync(temp, this.file);
-  }
+  write() { this.store.write(this.state); }
 
   get enabled() { return Boolean(this.state?.enabled); }
   get backupCodesLeft() { return this.state?.backup?.length ?? 0; }
@@ -94,7 +102,7 @@ class TwoFactor {
   beginSetup() {
     if (this.enabled) throw Object.assign(new Error('Two-factor authentication is already enabled.'), { status: 409 });
     this.pending = generateSecret();
-    return { secret: this.pending, uri: otpauthUri(this.pending) };
+    return { secret: this.pending, uri: otpauthUri(this.pending, this.account) };
   }
 
   confirmSetup(code) {
@@ -132,7 +140,7 @@ class TwoFactor {
   disable() {
     this.state = null;
     this.pending = null;
-    fs.rmSync(this.file, { force: true });
+    this.store.clear();
   }
 }
 

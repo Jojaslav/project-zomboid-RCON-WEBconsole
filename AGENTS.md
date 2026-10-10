@@ -16,7 +16,8 @@ Project Zomboid Control: a Node.js service that runs next to a Project Zomboid d
 |---|---|
 | `server/src/app.js` | Express routes, security headers, cookies, service readiness light |
 | `server/src/auth.js` | Sessions, login rate limiting, 2FA challenges |
-| `server/src/twofactor.js` | TOTP, backup codes, `2fa.json` storage |
+| `server/src/twofactor.js` | TOTP, backup codes; per-user storage (`2fa.json` for admin) |
+| `server/src/users.js` | Added users (`users.json`, scrypt hashes, per-user 2FA); built-in `admin` uses the env password |
 | `server/src/rcon.js` | RCON client and reconnecting wrapper |
 | `server/src/metrics.js` | `/proc` collector (Java CPU, RSS, uptime) |
 | `server/src/system.js` | `ServiceControl` (systemctl/journalctl) and config file handling |
@@ -55,7 +56,7 @@ CI (`.github/workflows/ci.yml`) runs the tests, the `setup.sh` syntax check and 
 ## Security rules (do not weaken)
 
 - **No secrets in the repo.** Never commit real passwords, RCON passwords, IP addresses, host names, keys or `.env` files. Use placeholders such as `192.168.1.50` in docs and examples.
-- **Authentication:** every `/api/*` route except `/api/health`, `/api/session`, `/api/login` and `/api/login/2fa` must use `requireAuth`. Login failures are rate limited per IP, and the 2FA second step must stay rate limited.
+- **Authentication:** every `/api/*` route except `/api/health`, `/api/session`, `/api/login`, `/api/login/2fa`, `/api/login/enroll/start` and `/api/login/enroll` must use `requireAuth`. All users have identical permissions; added users must enrol 2FA at first login and cannot disable it. Sensitive actions (user management, password change, 2FA changes) go through `reauthenticate`. Login failures are rate limited per IP, and the 2FA second step must stay rate limited.
 - **Cookies:** `HttpOnly`, `SameSite=Strict`, and `Secure` whenever the request is HTTPS (behind the trusted proxy).
 - **Command execution:** the server runs only fixed `systemctl` and `journalctl` commands through `ServiceControl`, with no shell. Never build commands from request input.
 - **File access:** config files are limited to a fixed list of names inside `PZ_SERVER_DIR`. Keep the path checks and the backup-before-write behaviour.

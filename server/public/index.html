@@ -10,6 +10,7 @@
   <section id="login" class="login-panel">
     <div class="brand"><span class="brand-mark">Z</span><div><span class="eyebrow">PROJECT ZOMBOID</span><h1>Server Control</h1></div></div>
     <form id="login-form">
+      <label>Username<input id="username" value="admin" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
       <label>Password<input id="password" type="password" autocomplete="current-password" required autofocus></label>
       <button class="primary" type="submit">Sign in</button>
     </form>
@@ -19,6 +20,19 @@
       <button class="primary" type="submit">Verify</button>
       <button id="code-cancel" class="text" type="button">Back</button>
     </form>
+    <form id="enroll-form" hidden>
+      <p class="hint">Two-factor authentication is required for your account. Scan this QR code with any authenticator app (or enter the key), then type the 6-digit code.</p>
+      <img id="enroll-qr" class="qr" alt="Authenticator QR code" width="200" height="200">
+      <p>Manual key: <code id="enroll-secret"></code></p>
+      <label>Code from the app<input id="enroll-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label>
+      <button class="primary" type="submit">Verify and continue</button>
+      <button id="enroll-cancel" class="text" type="button">Back</button>
+    </form>
+    <div id="enroll-codes" hidden>
+      <p class="hint"><b>Save these backup codes now.</b> Each works once if you lose your device. They will not be shown again.</p>
+      <pre id="enroll-codes-list"></pre>
+      <button id="enroll-copy" type="button">Copy codes</button> <button id="enroll-done" class="primary" type="button">I saved them</button>
+    </div>
     <output id="login-error"></output>
     <button id="switch-server-login" class="text client-only" hidden>Change server</button>
   </section>
@@ -104,7 +118,7 @@
 
       <section id="security" class="tab">
         <div class="panel">
-          <div class="panel-top"><div><h2>Two-factor authentication</h2><p id="tfa-status">Loading…</p></div></div>
+          <div class="panel-top"><div><h2>Two-factor authentication</h2><p id="whoami" class="hint"></p><p id="tfa-status">Loading…</p></div></div>
           <div id="tfa-off" hidden>
             <p class="hint">Protect sign-in with a time-based code from any authenticator app (Google Authenticator, Microsoft Authenticator, Authy, 1Password, Aegis, …).</p>
             <button id="tfa-start" class="primary">Set up two-factor authentication</button>
@@ -131,13 +145,37 @@
             </div>
             <div class="actions">
               <button type="button" id="tfa-regen">Generate new backup codes</button>
-              <button type="button" id="tfa-disable" class="warning">Disable two-factor</button>
+              <button type="button" id="tfa-disable" class="warning" hidden>Disable two-factor</button>
             </div>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-top"><div><h2>Users</h2><p class="hint">Every user has the same full access, including adding and removing users. Each user signs in with their own password and their own authenticator app.</p></div></div>
+          <table id="users-table"><thead><tr><th>User</th><th>Two-factor</th><th>Added by</th><th></th></tr></thead><tbody></tbody></table>
+          <form id="users-form">
+            <p class="hint">Actions below need your password<span id="users-code-note"></span>. New users and reset users set up their authenticator at their next sign-in.</p>
+            <div class="settings-grid">
+              <label>Your password<input id="users-password" type="password" autocomplete="current-password" required></label>
+              <label>Your code<input id="users-code" autocomplete="one-time-code" maxlength="20"></label>
+              <label>New username<input id="users-name" autocapitalize="none" spellcheck="false" placeholder="e.g. alice"></label>
+              <label>Temporary password (12+ chars)<input id="users-new" type="password" autocomplete="new-password"></label>
+            </div>
+            <div class="actions"><button type="submit" class="primary">Add user</button></div>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-top"><div><h2>Change my password</h2></div></div>
+          <form id="password-form">
+            <div class="settings-grid">
+              <label>Current password<input id="pw-current" type="password" autocomplete="current-password" required></label>
+              <label>Code<input id="pw-code" autocomplete="one-time-code" maxlength="20"></label>
+              <label>New password (12+ chars)<input id="pw-new" type="password" autocomplete="new-password" required></label>
+            </div>
+            <div class="actions"><button type="submit" class="primary">Change password</button></div>
           </form>
         </div>
       </section>
     </main>
-
     <footer>
       <span id="notice" role="status"></span>
       <div class="service-controls"><span>Service</span><button data-service="start">Start</button><button data-service="stop">Stop</button><button data-service="restart">Restart</button></div>

@@ -88,3 +88,8 @@ dialog::backdrop{background:#000a}
 .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 @media(max-width:900px){.metric-cards{grid-template-columns:repeat(3,1fr)}.dash-grid{grid-template-columns:1fr}}
 @media(max-width:520px){.metric-cards{grid-template-columns:repeat(2,1fr)}.stat{display:none}}
+
+#users-table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+#users-table th,#users-table td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.1)}
+#users-table td:last-child{text-align:right;white-space:nowrap}
+#enroll-codes-list{white-space:pre}

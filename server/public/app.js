@@ -6,6 +6,7 @@ let players = [];
 let timers = [];
 let logBusy = false;
 let challenge = null;
+let me = { user: '', builtin: false, twoFactor: false };
 
 class AuthError extends Error {}
 
@@ -259,7 +260,7 @@ function selectTab(tab) {
   document.querySelectorAll('[role=tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab').forEach((p) => p.classList.toggle('active', p.id === tab));
   if (tab === 'logs') loadLogs().catch(showError);
-  if (tab === 'security') loadTwoFactor().catch(showError);
+  if (tab === 'security') loadTwoFactor().then(loadUsers).catch(showError);
   if (tab === 'dashboard') { refreshMetrics(); refreshPlayers(); }
 }
 
@@ -286,26 +287,37 @@ async function boot() {
 }
 
 // ---- Wiring
+const loginPanels = ['login-form', 'code-form', 'enroll-form', 'enroll-codes'];
+function showLoginPanel(id) { for (const p of loginPanels) $(`#${p}`).hidden = p !== id; }
 $('#login-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   $('#login-error').textContent = '';
   try {
-    const result = await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('#password').value }) });
+    const result = await api('/api/login', { method: 'POST', body: JSON.stringify({ username: $('#username').value, password: $('#password').value }) });
     if (result.twoFactorRequired) {
       challenge = result.challenge;
-      $('#login-form').hidden = true;
-      $('#code-form').hidden = false;
+      showLoginPanel('code-form');
       $('#login-code').value = '';
       $('#login-code').focus();
       return;
     }
+    if (result.enrollRequired) {
+      challenge = result.challenge;
+      const setup = await api('/api/login/enroll/start', { method: 'POST', body: JSON.stringify({ challenge }) });
+      $('#enroll-qr').src = setup.qr;
+      $('#enroll-secret').textContent = setup.secret.match(/.{1,4}/g).join(' ');
+      $('#enroll-code').value = '';
+      showLoginPanel('enroll-form');
+      $('#enroll-code').focus();
+      return;
+    }
+    $('#password').value = '';
     await boot();
   } catch (error) { $('#login-error').textContent = error.message; }
 });
 function resetLoginForms() {
   challenge = null;
-  $('#code-form').hidden = true;
-  $('#login-form').hidden = false;
+  showLoginPanel('login-form');
   $('#password').value = '';
   $('#password').focus();
 }
@@ -322,7 +334,25 @@ $('#code-form').addEventListener('submit', async (event) => {
   }
 });
 $('#code-cancel').addEventListener('click', () => { $('#login-error').textContent = ''; resetLoginForms(); });
-
+$('#enroll-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  $('#login-error').textContent = '';
+  try {
+    const data = await api('/api/login/enroll', { method: 'POST', body: JSON.stringify({ challenge, code: $('#enroll-code').value }) });
+    $('#enroll-codes-list').textContent = data.backupCodes.join('\n');
+    showLoginPanel('enroll-codes');
+  } catch (error) {
+    $('#login-error').textContent = error.message;
+    if (error.restart) resetLoginForms(); else $('#enroll-code').select();
+  }
+});
+$('#enroll-cancel').addEventListener('click', () => { $('#login-error').textContent = ''; resetLoginForms(); });
+$('#enroll-copy').addEventListener('click', () => navigator.clipboard.writeText($('#enroll-codes-list').textContent).catch(() => {}));
+$('#enroll-done').addEventListener('click', async () => {
+  $('#enroll-codes-list').textContent = '';
+  resetLoginForms();
+  try { await boot(); } catch (error) { $('#login-error').textContent = error.message; }
+});
 // ---- Two-factor settings
 function tfaView(view) {
   for (const id of ['off', 'setup', 'codes']) $(`#tfa-${id}`).hidden = id !== view;
@@ -332,6 +362,10 @@ async function loadTwoFactor() {
   const s = await api('/api/2fa');
   $('#tfa-status').textContent = s.enabled ? `Enabled · ${s.backupCodesLeft} backup code${s.backupCodesLeft === 1 ? '' : 's'} left` : 'Not enabled';
   tfaView(s.enabled ? 'on' : 'off');
+  me = { user: s.user, builtin: s.builtin, twoFactor: s.enabled };
+  $('#whoami').textContent = `Signed in as ${s.user}`;
+  $('#tfa-disable').hidden = !s.canDisable;
+  $('#users-code-note').textContent = s.enabled ? ' and a current code' : '';
 }
 function showBackupCodes(codes) {
   $('#tfa-codes-list').textContent = codes.join('\n');
@@ -365,6 +399,56 @@ $('#tfa-regen').addEventListener('click', async () => {
 $('#tfa-disable').addEventListener('click', async () => {
   if (!confirm('Disable two-factor authentication?')) return;
   try { await api('/api/2fa/disable', { method: 'POST', body: manageBody() }); clearManage(); notice('Two-factor authentication disabled.'); await loadTwoFactor(); } catch (error) { showError(error); }
+});
+// ---- Users
+const authBody = (extra) => JSON.stringify({ password: $('#users-password').value, code: $('#users-code').value, ...extra });
+const clearUsersAuth = () => { $('#users-password').value = ''; $('#users-code').value = ''; };
+async function loadUsers() {
+  const { users } = await api('/api/users');
+  const body = $('#users-table tbody');
+  body.textContent = '';
+  for (const u of users) {
+    const row = body.insertRow();
+    row.insertCell().textContent = u.username + (u.builtin ? ' (built-in)' : '') + (u.username === me.user ? ' · you' : '');
+    row.insertCell().textContent = u.twoFactor ? 'On' : (u.builtin ? 'Off' : 'Pending first sign-in');
+    row.insertCell().textContent = u.createdBy || '—';
+    const actions = row.insertCell();
+    if (u.builtin || u.username === me.user) continue;
+    const reset = document.createElement('button');
+    reset.textContent = 'Reset';
+    reset.addEventListener('click', () => userAction(`/api/users/${encodeURIComponent(u.username)}/reset`, 'POST', `Reset ${u.username}? Their sessions end, their authenticator is removed, and the temporary password above is set.`, { newPassword: $('#users-new').value }));
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.className = 'warning';
+    del.addEventListener('click', () => userAction(`/api/users/${encodeURIComponent(u.username)}`, 'DELETE', `Delete ${u.username}?`, {}));
+    actions.append(reset, ' ', del);
+  }
+}
+async function userAction(url, method, question, extra) {
+  if (!confirm(question)) return;
+  try {
+    await api(url, { method, body: authBody(extra) });
+    clearUsersAuth(); $('#users-new').value = '';
+    notice('Done.');
+    await loadUsers();
+  } catch (error) { showError(error); }
+}
+$('#users-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await api('/api/users', { method: 'POST', body: authBody({ username: $('#users-name').value, newPassword: $('#users-new').value }) });
+    clearUsersAuth(); $('#users-name').value = ''; $('#users-new').value = '';
+    notice('User added. They will set up their authenticator at first sign-in.');
+    await loadUsers();
+  } catch (error) { showError(error); }
+});
+$('#password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await api('/api/password', { method: 'POST', body: JSON.stringify({ password: $('#pw-current').value, code: $('#pw-code').value, newPassword: $('#pw-new').value }) });
+    for (const id of ['pw-current', 'pw-code', 'pw-new']) $(`#${id}`).value = '';
+    notice('Password changed. Other sessions were signed out.');
+  } catch (error) { showError(error); }
 });
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
 document.querySelectorAll('[role=tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab)));

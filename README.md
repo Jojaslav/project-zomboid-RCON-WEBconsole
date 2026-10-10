@@ -160,6 +160,22 @@ sudo systemctl restart pz-control
 
 2FA is now off; sign in with the password and set it up again.
 
+## Multiple users
+
+Besides the built-in `admin` account you can add more users. Open **Security → Users**:
+
+1. Enter a username (3-32 characters: lowercase letters, digits, `.`, `-`, `_`) and a temporary password (12+ characters), then confirm with **your** password (and code).
+2. Give the person the username and temporary password.
+3. On their first sign-in they are asked to scan a QR code with their own authenticator app and verify a code, and receive their own backup codes. Two-factor is mandatory for added users and cannot be turned off.
+
+Rules:
+
+- **Every user has the same full access as admin**, including adding, resetting and deleting users. Only add people you trust with the server.
+- Each user has their own password, authenticator secret and backup codes. Users are stored in `/var/lib/pz-control/users.json` (mode 600, passwords hashed with scrypt).
+- **Reset** (for a user who lost their phone and backup codes) sets a new temporary password, removes their authenticator and signs them out; they enrol again at next sign-in. **Delete** removes the user and signs them out.
+- Users change their own password under **Security → Change my password**. The built-in `admin` password is changed in `/etc/pz-control/pz-control.env`.
+- Adding, resetting and deleting users, and changing a password, require the acting user's password and a current code.
+- If every user is locked out, use the admin account (its password is in the env file) and reset them, or delete `/var/lib/pz-control/users.json` to remove all added users.
 ## Installer options
 
 ```text
@@ -188,7 +204,7 @@ Settings live in `/etc/pz-control/pz-control.env`. After editing, run `sudo syst
 | `PZ_ADMIN_PASSWORD` | Panel password (12+ characters) |
 | `HOST` / `PORT` | Address and port the panel listens on |
 | `TRUST_PROXY` | `1` when a reverse proxy on the same machine terminates HTTPS (set by `--https`) |
-| `PZ_DATA_DIR` | Where panel state and `2fa.json` live |
+| `PZ_DATA_DIR` | Where panel state, `2fa.json` and `users.json` live |
 | `PZ_SERVER_DIR` | Zomboid `Server` folder |
 | `PZ_INI_FILE`, `PZ_SANDBOX_FILE`, `PZ_SPAWN_REGIONS_FILE`, `PZ_SPAWN_POINTS_FILE` | File names inside that folder |
 | `PZ_SERVICE` | systemd unit of the Zomboid server |

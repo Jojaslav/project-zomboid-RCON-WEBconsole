@@ -2,7 +2,7 @@ const path = require('node:path');
 const express = require('express');
 const QRCode = require('qrcode');
 const { Auth, getCookie, SESSION_TTL_MS } = require('./auth');
-const { TwoFactor } = require('./twofactor');
+const { UserStore } = require('./users');
 const { RconService } = require('./rcon');
 const { ServiceControl, ConfigFiles, cleanError } = require('./system');
 const { MetricsCollector } = require('./metrics');
@@ -11,8 +11,8 @@ const { version } = require('../package.json');
 const COOKIE = 'pz_admin';
 
 function createApp(config, overrides = {}) {
-  const auth = overrides.auth || new Auth({ password: config.password });
-  const twofactor = overrides.twofactor || new TwoFactor(config.dataDir);
+  const users = overrides.users || new UserStore({ dir: config.dataDir, adminPassword: config.password });
+  const auth = overrides.auth || new Auth({ password: config.password, users });
   const rcon = overrides.rcon || new RconService(config.rcon);
   const service = overrides.service || new ServiceControl(config);
   const files = overrides.files || new ConfigFiles(config);
@@ -35,7 +35,9 @@ function createApp(config, overrides = {}) {
   });
 
   const requireAuth = (req, res, next) => {
-    if (!auth.isValid(getCookie(req, COOKIE))) return res.status(401).json({ error: 'Authentication required.' });
+    const user = auth.userOf(getCookie(req, COOKIE));
+    if (!user || !users.has(user)) return res.status(401).json({ error: 'Authentication required.' });
+    req.user = user;
     next();
   };
   const handle = (fn) => async (req, res) => {
@@ -48,27 +50,39 @@ function createApp(config, overrides = {}) {
     res.set('Retry-After', String(retryAfter));
     return res.status(429).json({ error: `Too many attempts. Try again in ${retryAfter}s.` });
   };
-  // Sensitive 2FA changes need the password and a current code, and share the login rate limit.
+  // Sensitive changes need the acting user's password and, if they have 2FA, a current code.
+  // They share the login rate limit.
   const reauthenticate = (req, res) => {
     const retryAfter = auth.lockedFor(req.ip);
     if (retryAfter) { lockout(res, retryAfter); return false; }
-    if (!auth.checkPassword(String(req.body?.password || '')) || !twofactor.verify(String(req.body?.code || ''))) {
+    const tf = users.twoFactor(req.user);
+    if (!auth.checkPassword(String(req.body?.password || ''), req.user) || (tf.enabled && !tf.verify(String(req.body?.code || '')))) {
       auth.recordFailure(req.ip);
       res.status(403).json({ error: 'Password or code is incorrect.' });
       return false;
     }
     return true;
   };
+  const qrFor = async (uri) => `data:image/svg+xml;base64,${Buffer.from(await QRCode.toString(uri, { type: 'svg', margin: 1 })).toString('base64')}`;
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, app: 'pz-control', version }));
-  app.get('/api/session', (req, res) => res.json({ authenticated: auth.isValid(getCookie(req, COOKIE)) }));
+  app.get('/api/session', (req, res) => {
+    const user = auth.userOf(getCookie(req, COOKIE));
+    res.json({ authenticated: Boolean(user && users.has(user)), user: user || null });
+  });
 
   app.post('/api/login', (req, res) => {
-    const result = auth.login(String(req.body?.password || ''), req.ip, { twoFactor: twofactor.enabled });
+    const username = users.normalize(req.body?.username || 'admin');
+    const known = users.has(username);
+    const result = auth.login(String(req.body?.password || ''), req.ip, {
+      username,
+      challenge: known ? (users.needsEnrollment(username) ? 'enroll' : users.twoFactor(username).enabled ? 'code' : null) : null,
+    });
     if (!result.ok) {
       if (result.retryAfter) res.set('Retry-After', String(result.retryAfter));
       return res.status(result.status).json({ error: result.error });
     }
+    if (result.kind === 'enroll') return res.json({ ok: true, enrollRequired: true, challenge: result.challenge });
     if (result.challenge) return res.json({ ok: true, twoFactorRequired: true, challenge: result.challenge });
     startSession(req, res, result.token);
     res.json({ ok: true });
@@ -77,13 +91,37 @@ function createApp(config, overrides = {}) {
     const retryAfter = auth.lockedFor(req.ip);
     if (retryAfter) return lockout(res, retryAfter);
     const challenge = req.body?.challenge;
-    if (!auth.getChallenge(challenge)) return res.status(401).json({ error: 'Login expired. Sign in again.', restart: true });
-    if (!twofactor.verify(String(req.body?.code || ''))) {
+    const entry = auth.getChallenge(challenge, 'code');
+    if (!entry) return res.status(401).json({ error: 'Login expired. Sign in again.', restart: true });
+    if (!users.twoFactor(entry.user)?.verify(String(req.body?.code || ''))) {
       auth.failChallenge(challenge, req.ip);
       return res.status(401).json({ error: 'Invalid code.', restart: !auth.getChallenge(challenge) });
     }
     startSession(req, res, auth.completeChallenge(challenge, req.ip));
     res.json({ ok: true });
+  });
+  // First sign-in of an added user: set up the authenticator before getting a session.
+  app.post('/api/login/enroll/start', handle(async (req, res) => {
+    const retryAfter = auth.lockedFor(req.ip);
+    if (retryAfter) return lockout(res, retryAfter);
+    const entry = auth.getChallenge(req.body?.challenge, 'enroll');
+    if (!entry) return res.status(401).json({ error: 'Login expired. Sign in again.', restart: true });
+    const { secret, uri } = users.twoFactor(entry.user).beginSetup();
+    res.json({ secret, uri, qr: await qrFor(uri) });
+  }));
+  app.post('/api/login/enroll', (req, res) => {
+    const retryAfter = auth.lockedFor(req.ip);
+    if (retryAfter) return lockout(res, retryAfter);
+    const challenge = req.body?.challenge;
+    const entry = auth.getChallenge(challenge, 'enroll');
+    if (!entry) return res.status(401).json({ error: 'Login expired. Sign in again.', restart: true });
+    const codes = users.twoFactor(entry.user).confirmSetup(String(req.body?.code || ''));
+    if (!codes) {
+      auth.failChallenge(challenge, req.ip);
+      return res.status(400).json({ error: 'That code is not valid. Check the app and your clock, then try again.', restart: !auth.getChallenge(challenge) });
+    }
+    startSession(req, res, auth.completeChallenge(challenge, req.ip));
+    res.json({ ok: true, backupCodes: codes });
   });
   app.post('/api/logout', requireAuth, (req, res) => {
     auth.destroy(getCookie(req, COOKIE));
@@ -91,31 +129,70 @@ function createApp(config, overrides = {}) {
     res.json({ ok: true });
   });
 
-  app.get('/api/2fa', requireAuth, (_req, res) => res.json({ enabled: twofactor.enabled, backupCodesLeft: twofactor.backupCodesLeft }));
-  app.post('/api/2fa/setup', requireAuth, handle(async (_req, res) => {
-    const { secret, uri } = twofactor.beginSetup();
-    res.json({ secret, uri, qr: `data:image/svg+xml;base64,${Buffer.from(await QRCode.toString(uri, { type: 'svg', margin: 1 })).toString('base64')}` });
+  app.get('/api/2fa', requireAuth, (req, res) => {
+    const tf = users.twoFactor(req.user);
+    res.json({ enabled: tf.enabled, backupCodesLeft: tf.backupCodesLeft, user: req.user, builtin: users.isBuiltin(req.user), canDisable: users.isBuiltin(req.user) });
+  });
+  app.post('/api/2fa/setup', requireAuth, handle(async (req, res) => {
+    const { secret, uri } = users.twoFactor(req.user).beginSetup();
+    res.json({ secret, uri, qr: await qrFor(uri) });
   }));
   app.post('/api/2fa/enable', requireAuth, (req, res) => {
     const retryAfter = auth.lockedFor(req.ip);
     if (retryAfter) return lockout(res, retryAfter);
-    const codes = twofactor.confirmSetup(String(req.body?.code || ''));
+    const codes = users.twoFactor(req.user).confirmSetup(String(req.body?.code || ''));
     if (!codes) { auth.recordFailure(req.ip); return res.status(400).json({ error: 'That code is not valid. Check the app and your clock, then try again.' }); }
-    auth.destroyOthers(getCookie(req, COOKIE));
+    auth.destroyOthers(getCookie(req, COOKIE), req.user);
     res.json({ ok: true, backupCodes: codes });
   });
   app.post('/api/2fa/backup-codes', requireAuth, (req, res) => {
-    if (!twofactor.enabled) return res.status(409).json({ error: 'Two-factor authentication is not enabled.' });
-    if (reauthenticate(req, res)) res.json({ backupCodes: twofactor.regenerateBackupCodes() });
+    const tf = users.twoFactor(req.user);
+    if (!tf.enabled) return res.status(409).json({ error: 'Two-factor authentication is not enabled.' });
+    if (reauthenticate(req, res)) res.json({ backupCodes: tf.regenerateBackupCodes() });
   });
   app.post('/api/2fa/disable', requireAuth, (req, res) => {
-    if (!twofactor.enabled) return res.status(409).json({ error: 'Two-factor authentication is not enabled.' });
+    const tf = users.twoFactor(req.user);
+    if (!tf.enabled) return res.status(409).json({ error: 'Two-factor authentication is not enabled.' });
+    if (!users.isBuiltin(req.user)) return res.status(403).json({ error: 'Two-factor authentication is required for this account. Ask another user to reset it.' });
     if (!reauthenticate(req, res)) return;
-    twofactor.disable();
-    auth.destroyOthers(getCookie(req, COOKIE));
+    tf.disable();
+    auth.destroyOthers(getCookie(req, COOKIE), req.user);
     res.json({ ok: true });
   });
 
+  // Every user has the same access, including managing other users.
+  app.get('/api/users', requireAuth, (_req, res) => res.json({ users: users.list() }));
+  app.post('/api/users', requireAuth, handle(async (req, res) => {
+    if (!reauthenticate(req, res)) return;
+    const name = users.normalize(req.body?.username);
+    users.create(name, req.body?.newPassword, req.user);
+    res.json({ ok: true, username: name });
+  }));
+  app.delete('/api/users/:name', requireAuth, handle(async (req, res) => {
+    const name = users.normalize(req.params.name);
+    if (name === req.user) return res.status(400).json({ error: 'You cannot delete your own account.' });
+    users.requireManaged(name);
+    if (!reauthenticate(req, res)) return;
+    users.remove(name);
+    auth.destroyUser(name);
+    res.json({ ok: true });
+  }));
+  app.post('/api/users/:name/reset', requireAuth, handle(async (req, res) => {
+    const name = users.normalize(req.params.name);
+    if (name === req.user) return res.status(400).json({ error: 'Use "Change password" for your own account.' });
+    users.requireManaged(name);
+    if (!reauthenticate(req, res)) return;
+    users.reset(name, req.body?.newPassword);
+    auth.destroyUser(name);
+    res.json({ ok: true });
+  }));
+  app.post('/api/password', requireAuth, handle(async (req, res) => {
+    users.requireManaged(req.user);
+    if (!reauthenticate(req, res)) return;
+    users.setPassword(req.user, req.body?.newPassword);
+    auth.destroyOthers(getCookie(req, COOKIE), req.user);
+    res.json({ ok: true });
+  }));
   app.get('/api/info', requireAuth, (_req, res) => res.json({
     version,
     rconConfigured: rcon.configured,

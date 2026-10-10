@@ -12,8 +12,9 @@ function safeEqual(a, b) {
 }
 
 class Auth {
-  constructor({ password, now = Date.now }) {
+  constructor({ password, users = null, now = Date.now }) {
     this.password = password;
+    this.users = users;
     this.now = now;
     this.sessions = new Map();
     this.failures = new Map();
@@ -34,31 +35,36 @@ class Auth {
     this.failures.set(ip, entry);
   }
 
-  checkPassword(password) { return safeEqual(password, this.password); }
-
-  // With twoFactor, a correct password only yields a short-lived challenge; failures are
-  // deliberately not cleared until the second step succeeds, so code guessing stays rate-limited.
-  login(password, ip, { twoFactor = false } = {}) {
-    const retryAfter = this.lockedFor(ip);
-    if (retryAfter) return { ok: false, status: 429, error: `Too many attempts. Try again in ${retryAfter}s.`, retryAfter };
-    if (!this.checkPassword(password)) {
-      this.recordFailure(ip);
-      return { ok: false, status: 401, error: 'Invalid password.' };
-    }
-    if (twoFactor) return { ok: true, challenge: this.createChallenge() };
-    this.failures.delete(ip);
-    return { ok: true, token: this.createSession() };
+  checkPassword(password, username = 'admin') {
+    return this.users ? this.users.verifyPassword(username, password) : safeEqual(password, this.password);
   }
 
-  createChallenge() {
+  // With a challenge kind ('code' or 'enroll'), a correct password only yields a short-lived
+  // challenge; failures are deliberately not cleared until the second step succeeds, so code
+  // guessing stays rate-limited.
+  login(password, ip, { twoFactor = false, challenge = null, username = 'admin' } = {}) {
+    const retryAfter = this.lockedFor(ip);
+    if (retryAfter) return { ok: false, status: 429, error: `Too many attempts. Try again in ${retryAfter}s.`, retryAfter };
+    if (!this.checkPassword(password, username)) {
+      this.recordFailure(ip);
+      return { ok: false, status: 401, error: 'Invalid username or password.' };
+    }
+    const kind = challenge || (twoFactor ? 'code' : null);
+    if (kind) return { ok: true, kind, challenge: this.createChallenge(username, kind) };
+    this.failures.delete(ip);
+    return { ok: true, token: this.createSession(username) };
+  }
+
+  createChallenge(user = 'admin', kind = 'code') {
     const id = crypto.randomBytes(24).toString('hex');
-    this.challenges.set(id, { expires: this.now() + CHALLENGE_TTL_MS, attempts: 0 });
+    this.challenges.set(id, { expires: this.now() + CHALLENGE_TTL_MS, attempts: 0, user, kind });
     return id;
   }
 
-  getChallenge(id) {
+  getChallenge(id, kind = null) {
     const entry = typeof id === 'string' ? this.challenges.get(id) : null;
     if (!entry || entry.expires < this.now()) { if (entry) this.challenges.delete(id); return null; }
+    if (kind && entry.kind !== kind) return null;
     return entry;
   }
 
@@ -69,33 +75,42 @@ class Auth {
   }
 
   completeChallenge(id, ip) {
+    const entry = this.challenges.get(id);
     this.challenges.delete(id);
     this.failures.delete(ip);
-    return this.createSession();
+    return this.createSession(entry?.user);
   }
 
-  createSession() {
+  createSession(user = 'admin') {
     const token = crypto.randomBytes(32).toString('hex');
-    this.sessions.set(token, this.now() + SESSION_TTL_MS);
+    this.sessions.set(token, { expires: this.now() + SESSION_TTL_MS, user });
     return token;
   }
 
-  isValid(token) {
-    const expires = token && this.sessions.get(token);
-    if (!expires || expires < this.now()) {
+  userOf(token) {
+    const entry = token && this.sessions.get(token);
+    if (!entry || entry.expires < this.now()) {
       if (token) this.sessions.delete(token);
-      return false;
+      return null;
     }
-    return true;
+    return entry.user;
   }
+
+  isValid(token) { return this.userOf(token) !== null; }
 
   destroy(token) { this.sessions.delete(token); }
 
-  destroyOthers(keep) {
-    for (const token of this.sessions.keys()) if (token !== keep) this.sessions.delete(token);
+  destroyOthers(keep, user) {
+    for (const [token, entry] of this.sessions) {
+      if (token !== keep && (user === undefined || entry.user === user)) this.sessions.delete(token);
+    }
+  }
+
+  destroyUser(user) {
+    for (const [token, entry] of this.sessions) if (entry.user === user) this.sessions.delete(token);
+    for (const [id, entry] of this.challenges) if (entry.user === user) this.challenges.delete(id);
   }
 }
-
 function getCookie(req, name) {
   const header = req.headers.cookie;
   if (!header) return undefined;
