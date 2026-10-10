@@ -37,3 +37,5 @@ center("Web panel  -  Windows client  -  2FA", 830, font(40, False), (170, 185, 
 
 img.save("preview.png")
 img.resize((256, 256), Image.LANCZOS).save("preview_256.png")
+
+img.resize((256, 256), Image.LANCZOS).save('preview.png')
